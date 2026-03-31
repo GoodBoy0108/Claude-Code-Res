@@ -160,7 +160,7 @@ import { getFsImplementation, safeResolvePath } from 'src/utils/fsOperations.js'
 import { gracefulShutdown, gracefulShutdownSync } from 'src/utils/gracefulShutdown.js';
 import { setAllHookEventsEnabled } from 'src/utils/hooks/hookEvents.js';
 import { refreshModelCapabilities } from 'src/utils/model/modelCapabilities.js';
-import { peekForStdinData, writeToStderr } from 'src/utils/process.js';
+import { normalizeProcessTtyStreams, peekForStdinData, writeToStderr } from 'src/utils/process.js';
 import { setCwd } from 'src/utils/Shell.js';
 import { type ProcessedResume, processResumedConversation } from 'src/utils/sessionRestore.js';
 import { parseSettingSourcesFlag } from 'src/utils/settings/constants.js';
@@ -584,6 +584,7 @@ const _pendingSSH: PendingSSH | undefined = feature('SSH_REMOTE') ? {
 } : undefined;
 export async function main() {
   profileCheckpoint('main_function_start');
+  normalizeProcessTtyStreams();
 
   // Preserve the restored debug alias without registering an invalid
   // multi-character short flag in Commander.
@@ -2035,7 +2036,6 @@ async function run(): Promise<CommanderCommand> {
     const [commands, agentDefinitionsResult] = await Promise.all([commandsPromise ?? getCommands(currentCwd), agentDefsPromise ?? getAgentDefinitionsWithOverrides(currentCwd)]);
     logForDebugging(`[STARTUP] Commands and agents loaded in ${Date.now() - commandsStart}ms`);
     profileCheckpoint('action_commands_loaded');
-
     // Parse CLI agents if provided via --agents flag
     let cliAgents: typeof agentDefinitionsResult.activeAgents = [];
     if (agentsJson) {

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { normalizeTtyStreams } from 'src/utils/process.js'
 import { logForDebugging } from 'src/utils/debug.js'
 import { Stream } from 'stream'
 import type { FrameEvent } from './frame.js'
@@ -86,6 +87,7 @@ export const renderSync = (
     patchConsole: true,
     ...opts,
   }
+  normalizeTtyStreams(inkOptions.stdin, inkOptions.stdout, inkOptions.stderr)
 
   const instance: Ink = getInstance(
     inkOptions.stdout,
@@ -134,6 +136,8 @@ export async function createRoot({
   patchConsole = true,
   onFrame,
 }: RenderOptions = {}): Promise<Root> {
+  normalizeTtyStreams(stdin, stdout, stderr)
+
   // See wrappedRender — preserve microtask boundary from the old WASM await.
   await Promise.resolve()
   const instance = new Ink({

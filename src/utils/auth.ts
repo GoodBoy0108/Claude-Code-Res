@@ -98,6 +98,8 @@ function isManagedOAuthContext(): boolean {
 /** Whether we are supporting direct 1P auth. */
 // this code is closely related to getAuthTokenSource
 export function isAnthropicAuthEnabled(): boolean {
+  // 禁用 OAuth 授权流程，使用 API Key 认证
+  return false
   // --bare: API-key-only, never OAuth.
   if (isBareMode()) return false
 

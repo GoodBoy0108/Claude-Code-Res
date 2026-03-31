@@ -1,3 +1,101 @@
+import { isatty } from 'tty'
+import { execSync_DEPRECATED } from './execSyncWrapper.js'
+import { isRunningWithBun } from './bundledMode.js'
+
+type TtyLikeStream = {
+  fd?: number
+  isTTY?: boolean
+  setRawMode?: (mode: boolean) => void
+  getWindowSize?: () => [number, number]
+  columns?: number
+  rows?: number
+}
+
+let cachedWindowsConsoleState:
+  | { stdin: boolean; stdout: boolean; stderr: boolean }
+  | undefined
+
+function getWindowsConsoleState() {
+  if (cachedWindowsConsoleState) {
+    return cachedWindowsConsoleState
+  }
+
+  try {
+    const [stdin, stdout, stderr] = execSync_DEPRECATED(
+      'powershell -NoProfile -Command "[Console]::IsInputRedirected; [Console]::IsOutputRedirected; [Console]::IsErrorRedirected"',
+      { encoding: 'utf8' },
+    )
+      .trim()
+      .split(/\r?\n/)
+      .map(line => line.trim().toLowerCase() === 'false')
+
+    cachedWindowsConsoleState = { stdin, stdout, stderr }
+  } catch {
+    cachedWindowsConsoleState = { stdin: false, stdout: false, stderr: false }
+  }
+
+  return cachedWindowsConsoleState
+}
+
+function inferIsTTY(stream: TtyLikeStream, kind: 'stdin' | 'stdout' | 'stderr') {
+  if (stream.isTTY !== undefined) {
+    return
+  }
+
+  if (typeof stream.fd === 'number' && isatty(stream.fd)) {
+    stream.isTTY = true
+    return
+  }
+
+  if (stream.fd !== undefined) {
+    return
+  }
+
+  if (kind === 'stdin') {
+    if (typeof stream.setRawMode === 'function') {
+      stream.isTTY = true
+    }
+    return
+  }
+
+  const hasWindowSize = typeof stream.getWindowSize === 'function'
+  const hasDimensions =
+    typeof stream.columns === 'number' && typeof stream.rows === 'number'
+
+  if (hasWindowSize || hasDimensions) {
+    stream.isTTY = true
+  }
+}
+
+export function normalizeTtyStreams(
+  stdin: TtyLikeStream,
+  stdout: TtyLikeStream,
+  stderr: TtyLikeStream,
+): void {
+  if (process.platform !== 'win32' || !isRunningWithBun()) {
+    return
+  }
+
+  inferIsTTY(stdin, 'stdin')
+  inferIsTTY(stdout, 'stdout')
+  inferIsTTY(stderr, 'stderr')
+
+  const consoleState = getWindowsConsoleState()
+  if (consoleState.stdin) {
+    stdin.isTTY = true
+  }
+  if (consoleState.stdout) {
+    stdout.isTTY = true
+  }
+  if (consoleState.stderr) {
+    stderr.isTTY = true
+  }
+}
+
+export function normalizeProcessTtyStreams(): void {
+  normalizeTtyStreams(process.stdin, process.stdout, process.stderr)
+}
+
 function handleEPIPE(
   stream: NodeJS.WriteStream,
 ): (err: NodeJS.ErrnoException) => void {

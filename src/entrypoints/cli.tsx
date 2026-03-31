@@ -288,6 +288,10 @@ async function main(): Promise<void> {
   const {
     startCapturingEarlyInput
   } = await import('../utils/earlyInput.js');
+  const {
+    normalizeProcessTtyStreams
+  } = await import('../utils/process.js');
+  normalizeProcessTtyStreams();
   startCapturingEarlyInput();
   profileCheckpoint('cli_before_main_import');
   const {

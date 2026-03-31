@@ -1,0 +1,7 @@
+[build]
+# 启用 BUDDY feature
+define = { "feature('BUDDY')": "true", "feature('KAIROS')": "true" }
+
+[install]
+# 确保使用正确的 Bun 版本
+exact = true
