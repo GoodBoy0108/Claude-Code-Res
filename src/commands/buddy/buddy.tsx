@@ -6,6 +6,7 @@ import { getCompanion, roll, rollWithSeed } from '../../buddy/companion.js'
 import { RARITY_COLORS, RARITY_STARS, type Companion, type Species, type StoredCompanion } from '../../buddy/types.js'
 import { renderSprite } from '../../buddy/sprites.js'
 import { getGlobalConfig, saveGlobalConfig } from '../../utils/config.js'
+import { stringWidth } from '../../ink/stringWidth.js'
 import type { AppState } from '../../state/AppStateStore.js'
 import type { LocalJSXCommandOnDone } from '../../types/command.js'
 
@@ -17,105 +18,113 @@ function parseArgs(args: string): { subcommand: string; args: string[] } {
 }
 
 // Render stat bar
-function renderStatBar(name: string, value: number, width = 30): React.ReactNode {
+function renderStatBar(name: string, value: number, width = 10): React.ReactNode {
   const filled = Math.round((value / 100) * width)
   const empty = width - filled
   const bar = '█'.repeat(filled) + '░'.repeat(empty)
   return (
     <Box key={name}>
-      <Box width={12}>
+      <Box width={11}>
         <Text bold>{name}</Text>
       </Box>
       <Text>{bar}</Text>
-      <Text dimColor> {value}</Text>
+      <Text dimColor>  {value}</Text>
     </Box>
   )
 }
 
 // Render companion card
 function renderCompanionCard(companion: Companion): React.ReactNode {
-  const { rarity, species, shiny, hat, stats, name, personality, hatchedAt } = companion
+  const { rarity, species, shiny, stats, name, personality } = companion
   const stars = RARITY_STARS[rarity]
   const color = RARITY_COLORS[rarity]
   const sprite = renderSprite(companion, 0)
 
   return (
-    <Box flexDirection="column" paddingX={2}>
-      <Box marginBottom={1}>
-        <Text color={color} bold>
-          {stars} {rarity.toUpperCase()}
-          {shiny && ' ✨ SHINY'}
-        </Text>
-      </Box>
-
-      <Box flexDirection="column" marginBottom={1} alignItems="center">
-        {sprite.map((line, i) => (
-          <Text key={i} bold={shiny}>
-            {line}
+    <Box flexDirection="column" marginX={2}>
+      <Box flexDirection="column" borderStyle="round" paddingX={1}>
+        {/* Rarity + Species */}
+        <Box justifyContent="space-between">
+          <Text color={color} bold>
+            {stars} {rarity.toUpperCase()}
+            {shiny && ' ✨ SHINY'}
           </Text>
-        ))}
-      </Box>
+          <Text>{species.toUpperCase()}</Text>
+        </Box>
 
-      <Box flexDirection="column" marginBottom={1}>
-        <Box>
-          <Text bold>Name: </Text>
-          <Text>{name}</Text>
+        {/* Sprite */}
+        <Text>{' '}</Text>
+        <Box flexDirection="column">
+          {sprite.map((line, i) => (
+            <Text key={i} bold={shiny}>
+              {line}
+            </Text>
+          ))}
         </Box>
-        <Box>
-          <Text bold>Species: </Text>
-          <Text>{species}</Text>
-        </Box>
-        {hat !== 'none' && (
-          <Box>
-            <Text bold>Hat: </Text>
-            <Text>{hat}</Text>
-          </Box>
-        )}
-        <Box>
-          <Text bold>Hatched: </Text>
-          <Text>{new Date(hatchedAt).toLocaleDateString()}</Text>
-        </Box>
-      </Box>
 
-      <Box flexDirection="column" marginBottom={1}>
+        {/* Name */}
+        <Text>{' '}</Text>
+        <Text bold>{name}</Text>
+
+        {/* Personality */}
+        <Text>{' '}</Text>
         <Text italic dimColor>
-          "{personality}"
+          &ldquo;{personality}&rdquo;
         </Text>
-      </Box>
 
-      <Box flexDirection="column" marginTop={1}>
-        <Text bold>Stats:</Text>
-        {renderStatBar('DEBUGGING', stats.DEBUGGING)}
-        {renderStatBar('PATIENCE', stats.PATIENCE)}
-        {renderStatBar('CHAOS', stats.CHAOS)}
-        {renderStatBar('WISDOM', stats.WISDOM)}
-        {renderStatBar('SNARK', stats.SNARK)}
+        {/* Stats */}
+        <Text>{' '}</Text>
+        <Box flexDirection="column">
+          {renderStatBar('DEBUGGING', stats.DEBUGGING)}
+          {renderStatBar('PATIENCE', stats.PATIENCE)}
+          {renderStatBar('CHAOS', stats.CHAOS)}
+          {renderStatBar('WISDOM', stats.WISDOM)}
+          {renderStatBar('SNARK', stats.SNARK)}
+        </Box>
+
+        <Text>{' '}</Text>
       </Box>
     </Box>
   )
 }
 
-// Simple text card for narrow terminals
+// Text card output — used as the persistent message for /buddy and /buddy card.
+// Renders as a <local-command-stdout> message in the conversation transcript.
 function renderCompanionCardText(companion: Companion): string {
   const { rarity, species, shiny, name, personality, stats } = companion
   const stars = RARITY_STARS[rarity]
+  const sprite = renderSprite(companion, 0)
 
-  return `
-${stars} ${rarity.toUpperCase()}${shiny ? ' ✨ SHINY' : ''}
+  const statLines = ([
+    ['DEBUGGING', stats.DEBUGGING],
+    ['PATIENCE', stats.PATIENCE],
+    ['CHAOS', stats.CHAOS],
+    ['WISDOM', stats.WISDOM],
+    ['SNARK', stats.SNARK],
+  ] as const).map(([key, value]) => {
+    const w = 10
+    const filled = Math.round((value / 100) * w)
+    const bar = '█'.repeat(filled) + '░'.repeat(w - filled)
+    return `  ${key.padEnd(10)}${bar}  ${value}`
+  })
 
-Name: ${name}
-Species: ${species}
-Shiny: ${shiny ? 'Yes ✨' : 'No'}
+  const content: string[] = [
+    `${stars} ${rarity.toUpperCase()}${shiny ? ' ✨ SHINY' : ''}  ${species.toUpperCase()}`,
+    '',
+    ...sprite,
+    '',
+    name,
+    '',
+    `"${personality}"`,
+    '',
+    ...statLines,
+  ]
 
-"${personality}"
+  const innerWidth = Math.max(...content.map(l => stringWidth(l)), 20)
+  const top = '╭' + '─'.repeat(innerWidth + 2) + '╮'
+  const bot = '╰' + '─'.repeat(innerWidth + 2) + '╯'
 
-Stats:
-  DEBUGGING: ${stats.DEBUGGING}/100
-  PATIENCE:  ${stats.PATIENCE}/100
-  CHAOS:     ${stats.CHAOS}/100
-  WISDOM:    ${stats.WISDOM}/100
-  SNARK:     ${stats.SNARK}/100
-`
+  return [top, ...content.map(l => `│ ${l.padEnd(innerWidth)} │`), bot].join('\n')
 }
 
 // AI generation prompt for hatch
@@ -328,8 +337,8 @@ function handleCard(args: string[], onDone: LocalJSXCommandOnDone): React.ReactN
     return <Text>{JSON.stringify(companion, null, 2)}</Text>
   }
 
-  onDone(undefined, { display: 'skip' })
-  return renderCompanionCard(companion)
+  onDone(renderCompanionCardText(companion))
+  return null
 }
 
 // Mute subcommand
@@ -494,7 +503,8 @@ function BuddyCommand({
   if (!subcommand || subcommand === '') {
     const companion = getCompanion()
     if (companion) {
-      return renderCompanionCard(companion)
+      onDone(renderCompanionCardText(companion))
+      return null
     }
     return handleHelp(onDone)
   }
